@@ -9,8 +9,16 @@ import (
 	"strings"
 )
 
+type Fuzzer struct {
+	ipc  *FuzzIPC
+	Proc *exec.Cmd
+}
+
 // Set up shared memory and semaphore
-func setShm() {
+func (fuzzer *Fuzzer) setShm() error {
+	ipc, err := SetupIPC()
+	fuzzer.ipc = ipc
+	return err
 }
 
 // Parse configuration from file and return a map
@@ -50,7 +58,7 @@ func ParseConf(confPath string) map[string]string {
 }
 
 // Execute afl process with conf and return cmd struct
-func ExecAFL(conf map[string]string) *exec.Cmd {
+func ExecAFL(conf map[string]string) *Fuzzer {
 	args := make([]string, 0)
 	args = append(args, "-i")
 	args = append(args, conf["input_path"])
@@ -63,17 +71,38 @@ func ExecAFL(conf map[string]string) *exec.Cmd {
 		args = append(args, strings.Split(conf["fuzz_args"], " ")...)
 	}
 
+	log.Println("Setup shared memory...")
+	// setup shared memory
+	ipc, err := SetupIPC()
+	if err != nil {
+		log.Fatalln("Setup shared memory error!")
+	} else {
+		log.Println("Setup shared memory successfully")
+	}
+
 	cmd := exec.Command(conf["afl_path"], args...)
 	cmd.Stdout = ioutil.Discard
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln("AFL start fail!")
+		log.Fatalln(err)
+	} else {
+		log.Println("AFL start successfully!")
 	}
-	return cmd
+
+	fuzzer := new(Fuzzer)
+	fuzzer.Proc = cmd
+	fuzzer.ipc = ipc
+	return fuzzer
 }
 
-// Get bitmao from afl
-func GetBitmap() {
+// Get bitmap from afl
+func (fuzzer *Fuzzer) GetBitmap() []byte {
+	bitmap, err := fuzzer.ipc.GetBitMap()
+	if err != nil {
+		log.Println("Git bitmap error!")
+	}
+	return bitmap
 }
 
 // Get status from afl
