@@ -63,13 +63,14 @@ func initSem(psem unsafe.Pointer, value int) (*semaphore, error) {
 	return sem, nil
 }
 
-func (sem *semaphore) getValue() (int, error) {
+func (sem *semaphore) getValue() int {
 	var val C.int
 	_, err := C.sem_getvalue(sem.sem, &val)
 	if err != nil {
-		return 0, err
+		log.Fatalf("Semaphore get value error: %s\n", err)
+		return 0
 	}
-	return int(val), nil
+	return int(val)
 }
 
 func (sem *semaphore) post() error {
